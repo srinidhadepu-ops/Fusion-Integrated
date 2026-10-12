@@ -1,6 +1,8 @@
 """Unit test suite for Model 2 (Qwen 14B) ELM module."""
 from datetime import date
+
 from django.test import TestCase
+
 from modules.leave.domain import rules
 
 

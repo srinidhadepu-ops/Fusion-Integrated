@@ -1,4 +1,5 @@
 from django.urls import path
+
 from modules.leave.api import views
 
 urlpatterns = [

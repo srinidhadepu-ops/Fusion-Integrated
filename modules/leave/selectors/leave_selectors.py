@@ -1,7 +1,8 @@
 """Selectors for ELM query operations (Qwen 14B)."""
-from typing import Optional
+
 from django.db.models import QuerySet
-from modules.leave.models import LeaveRequest, LeaveAccount, HolidayCalendar, LeavePolicyConfig
+
+from modules.leave.models import LeaveAccount, LeaveRequest
 
 
 def get_user_leave_requests(user_id: str) -> QuerySet[LeaveRequest]:
@@ -34,7 +35,7 @@ def get_establishment_inbox() -> QuerySet[LeaveRequest]:
     )
 
 
-def get_sanction_inbox(authority_id: Optional[str] = None) -> QuerySet[LeaveRequest]:
+def get_sanction_inbox(authority_id: str | None = None) -> QuerySet[LeaveRequest]:
     """EL-UC-005, EL-UC-011: Final sanction and resumption inbox."""
     qs = LeaveRequest.objects.filter(
         status__in=[

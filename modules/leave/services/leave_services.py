@@ -2,13 +2,18 @@
 Model 2 (Qwen 14B) implementation.
 """
 from datetime import date
-from django.db import transaction
+
 from django.core.exceptions import ValidationError
-from modules.leave.models import (
-    LeaveRequest, LeaveAccount, LeaveTransitionAudit,
-    HolidayCalendar, AcademicVacationPeriod, LeavePolicyConfig
-)
+from django.db import transaction
+
 from modules.leave.domain import rules
+from modules.leave.models import (
+    AcademicVacationPeriod,
+    HolidayCalendar,
+    LeaveAccount,
+    LeaveRequest,
+    LeaveTransitionAudit,
+)
 
 
 @transaction.atomic

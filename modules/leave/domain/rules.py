@@ -2,10 +2,7 @@
 No Django/DRF/Celery imports allowed here.
 Encodes CFR-EL-001 through CFR-EL-032 and BR-EL-001 through BR-EL-038.
 """
-from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import List, Dict, Tuple, Optional, Set
-
 
 # Leave Categories (BR-EL-001)
 CAT_CL = "CL"
@@ -14,7 +11,7 @@ CAT_SCL = "SCL"
 CAT_EL = "EL"
 CAT_COL = "COL"
 CAT_VL = "VL"
-ALL_CATEGORIES: Set[str] = {CAT_CL, CAT_RH, CAT_SCL, CAT_EL, CAT_COL, CAT_VL}
+ALL_CATEGORIES: set[str] = {CAT_CL, CAT_RH, CAT_SCL, CAT_EL, CAT_COL, CAT_VL}
 
 # Workflow States (CW-EL-01 through CW-EL-04)
 ST_DRAFT = "DRAFT"
@@ -45,7 +42,7 @@ def calculate_days(
     start_date: date,
     end_date: date,
     is_half_day: bool = False,
-    published_holidays: Optional[Set[date]] = None,
+    published_holidays: set[date] | None = None,
 ) -> float:
     """Computes chargeable leave days according to BR-EL-010 and BR-EL-011.
     - EL, COL, VL: continuous calendar count (intervening weekends & closed holidays included).
@@ -76,11 +73,11 @@ def check_applicant_overlap(
     cand_start: date,
     cand_end: date,
     cand_half: bool,
-    cand_half_type: Optional[str],
+    cand_half_type: str | None,
     active_start: date,
     active_end: date,
     active_half: bool,
-    active_half_type: Optional[str],
+    active_half_type: str | None,
 ) -> bool:
     """Evaluates applicant non-overlap with the half-day CL exception (BR-EL-012)."""
     if cand_end < active_start or cand_start > active_end:
@@ -101,8 +98,8 @@ def check_applicant_overlap(
 
 def execute_year_end_processing(
     employee_type: str,
-    balances: Dict[str, float],
-) -> Tuple[Dict[str, float], List[str]]:
+    balances: dict[str, float],
+) -> tuple[dict[str, float], list[str]]:
     """Implements event-triggered year-end leave execution (EL-UC-020, CFR-EL-028, BR-EL-002-009).
     - CL, RH, SCL lapse to 0.
     - Faculty VL: converted 2 VL : 1 EL (preserves fractional output), VL balance set to 0.
