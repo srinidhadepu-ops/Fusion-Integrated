@@ -43,21 +43,32 @@ def calculate_days(
     end_date: date,
     is_half_day: bool = False,
     published_holidays: set[date] | None = None,
+    is_continuous_count: bool | None = None,
 ) -> float:
     """Computes chargeable leave days according to BR-EL-010 and BR-EL-011.
     - EL, COL, VL: continuous calendar count (intervening weekends & closed holidays included).
-    - CL, RH, SCL: intervening weekends and closed holidays excluded.
+    - CL and SCL exclude intervening weekends and closed holidays.
+    - RH is one chargeable day; the service validates its published RH date.
     - CL Half-day: exactly 0.5 day.
     """
     if category == CAT_CL and is_half_day:
         return 0.5
 
+    # An RH date is itself an applicable holiday and still consumes one RH day.
+    # The service separately enforces that RH requests contain exactly one date.
+    if category == CAT_RH:
+        return 1.0 if start_date == end_date else 0.0
+
     holidays = published_holidays or set()
     current = start_date
     count = 0.0
+    continuous = (
+        category in (CAT_EL, CAT_COL, CAT_VL)
+        if is_continuous_count is None else is_continuous_count
+    )
 
     while current <= end_date:
-        if category in (CAT_EL, CAT_COL, CAT_VL):
+        if continuous:
             count += 1.0
         else:
             is_weekend = current.weekday() in (5, 6)
@@ -83,17 +94,15 @@ def check_applicant_overlap(
     if cand_end < active_start or cand_start > active_end:
         return False
 
-    if (
+    # Different halves on the same date do not collide.
+    return not (
         cand_start == cand_end == active_start == active_end
         and cand_half
         and active_half
         and cand_half_type
         and active_half_type
         and cand_half_type != active_half_type
-    ):
-        return False  # Different halves on the same date do not collide
-
-    return True
+    )
 
 
 def execute_year_end_processing(
@@ -121,5 +130,8 @@ def execute_year_end_processing(
         updated[CAT_EL] = updated.get(CAT_EL, 0.0) + converted_el
         audit_notes.append(f"Converted {unused_vl} VL into {converted_el} EL (2:1 ratio).")
 
-    audit_notes.append(f"Carried forward EL ({updated.get(CAT_EL, 0.0)}) and COL ({updated.get(CAT_COL, 0.0)}).")
+    audit_notes.append(
+        f"Carried forward EL ({updated.get(CAT_EL, 0.0)}) "
+        f"and COL ({updated.get(CAT_COL, 0.0)})."
+    )
     return updated, audit_notes

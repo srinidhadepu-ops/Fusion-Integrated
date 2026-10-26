@@ -106,6 +106,10 @@ class LeaveRequest(models.Model):
     unit_head_recommendation = models.CharField(max_length=20, blank=True, null=True)
     establishment_user_id = models.CharField(max_length=64, blank=True, null=True)
     sanctioning_authority_id = models.CharField(max_length=64, blank=True, null=True)
+    routing_config = models.ForeignKey(
+        "LeaveHierarchyConfig", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="routed_requests",
+    )
     final_decision_notes = models.TextField(blank=True, null=True)
 
     # Extension (CW-EL-03, BR-EL-025)
@@ -119,12 +123,18 @@ class LeaveRequest(models.Model):
     # Offline synchronization (BR-EL-029)
     is_offline_sync = models.BooleanField(default=False)
     offline_sanction_reference = models.CharField(max_length=255, blank=True, null=True)
+    offline_unavailable_reason = models.CharField(max_length=255, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "elm_leave_request"
+        constraints = [models.UniqueConstraint(
+            fields=("applicant_id", "offline_sanction_reference"),
+            condition=models.Q(is_offline_sync=True),
+            name="elm_offline_reference_unique",
+        )]
 
 
 class LeaveTransitionAudit(models.Model):
@@ -150,3 +160,86 @@ class LeaveSLASettings(models.Model):
 
     class Meta:
         db_table = "elm_sla_settings"
+
+
+class LeaveHierarchyConfig(models.Model):
+    """Current route for a department, designation, and leave category."""
+    department = models.CharField(max_length=100)
+    applicant_role = models.CharField(max_length=50)
+    category = models.CharField(max_length=10)
+    unit_head_id = models.CharField(max_length=64, blank=True)
+    establishment_user_id = models.CharField(max_length=64, blank=True)
+    sanctioning_authority_id = models.CharField(max_length=64, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "elm_hierarchy_config"
+        constraints = [models.UniqueConstraint(
+            fields=("department", "applicant_role", "category"),
+            name="elm_hierarchy_route_unique",
+        )]
+
+    def __str__(self) -> str:
+        return f"{self.department} / {self.applicant_role} / {self.category}"
+
+
+class HolidayCalendarRelease(models.Model):
+    """A staged calendar replacement; only one release governs validation."""
+    name = models.CharField(max_length=120)
+    is_current = models.BooleanField(default=False)
+    created_by = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "elm_calendar_release"
+        constraints = [models.UniqueConstraint(
+            fields=("is_current",), condition=models.Q(is_current=True),
+            name="elm_one_current_calendar",
+        )]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class HolidayCalendarEntry(models.Model):
+    """Date data belonging to a staged or published calendar release."""
+    release = models.ForeignKey(
+        HolidayCalendarRelease, on_delete=models.CASCADE, related_name="entries"
+    )
+    date = models.DateField()
+    title = models.CharField(max_length=200)
+    is_restricted_holiday = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "elm_calendar_entry"
+        constraints = [models.UniqueConstraint(
+            fields=("release", "date"), name="elm_calendar_date_unique"
+        )]
+
+    def __str__(self) -> str:
+        return f"{self.date}: {self.title}"
+
+
+class AttendanceSyncOutbox(models.Model):
+    """Durable event for downstream attendance synchronization."""
+    STATUS_CHOICES = [
+        ("pending", "Pending"), ("delivered", "Delivered"), ("failed", "Failed"),
+    ]
+    request = models.ForeignKey(
+        LeaveRequest, on_delete=models.PROTECT, related_name="attendance_sync_events"
+    )
+    event_key = models.CharField(max_length=160, unique=True)
+    payload = models.JSONField(default=dict)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="pending")
+    attempts = models.PositiveSmallIntegerField(default=0)
+    last_error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "elm_attendance_sync_outbox"
+        indexes = [models.Index(fields=("status", "created_at"), name="elm_att_sync_pending_idx")]
+
+    def __str__(self) -> str:
+        return f"{self.event_key} [{self.status}]"

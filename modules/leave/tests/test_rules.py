@@ -25,10 +25,17 @@ class ELMQwen14BTests(TestCase):
         )
         self.assertFalse(overlap)
 
+    def test_restricted_holiday_itself_is_chargeable(self):
+        day = date(2026, 11, 10)
+        self.assertEqual(
+            rules.calculate_days("RH", day, day, published_holidays={day}),
+            1.0,
+        )
+
     def test_faculty_vl_year_end_execution(self):
         """VL converts 2:1 into EL and lapses to 0 (BR-EL-007, BR-EL-008)."""
         balances = {"CL": 2.0, "RH": 1.0, "SCL": 4.0, "EL": 10.0, "VL": 55.0, "COL": 20.0}
-        updated, notes = rules.execute_year_end_processing("faculty", balances)
+        updated, _notes = rules.execute_year_end_processing("faculty", balances)
         self.assertEqual(updated["CL"], 0.0)
         self.assertEqual(updated["VL"], 0.0)
         self.assertEqual(updated["EL"], 37.5)  # 10 + 27.5
